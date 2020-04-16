@@ -1,0 +1,17 @@
+FROM ubuntu:18.04
+MAINTAINER Normal-OJ
+
+# update
+RUN apt-get update -y
+# install seccomp, python3
+RUN apt-get install seccomp python3 -y
+# install python packages
+RUN wget https://bootstrap.pypa.io/get-pip.py
+RUN pyhton3 get-pip.py
+RUN pip install -r snadbox-requirements.txt
+# sandbox user with uid:1450
+RUN useradd sandbox -u 1450
+# result folder
+RUN mkdir /result
+# sandbox binary
+COPY sandbox /usr/bin/

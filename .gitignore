@@ -9,7 +9,9 @@ __pycache__
 .vscode
 
 submissions/
+submissions.bk/
 
+logs/
 *.log
 
 sandbox
