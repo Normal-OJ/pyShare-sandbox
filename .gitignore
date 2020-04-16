@@ -1,0 +1,16 @@
+.vscode/
+
+venv
+.venv
+__pycache__
+
+.config/*
+!.config/*.example
+.vscode
+
+submissions/
+
+*.log
+
+sandbox
+.pytest_cache/
