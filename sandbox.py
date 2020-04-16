@@ -1,119 +1,107 @@
-import json
 import logging
-import os
 import tarfile
-from io import BytesIO
+import shutil
 from uuid import uuid1
+from pathlib import Path
 
 import docker
+from docker.errors import APIError
+from requests.exceptions import ReadTimeout
 
 
-class Sandbox():
-    def __init__(self,
-                 time_limit,
-                 mem_limit,
-                 image,
-                 src_dir,
-                 lang_id,
-                 compile_need,
-                 stdin_path=None):
-        with open('.config/submission.json') as f:
-            config = json.load(f)
+class Sandbox:
+    def __init__(
+        self,
+        time_limit: int,
+        mem_limit: int,
+        src_dir: str,
+        ignores: list,
+    ):
         self.time_limit = time_limit  # int:ms
         self.mem_limit = mem_limit  # int:kb
-        self.image = image  # str
-        self.src_dir = src_dir  # str
-        self.stdin_path = stdin_path  # str
-        self.lang_id = lang_id  # str
-        self.compile_need = compile_need  # bool
-        self.client = docker.APIClient(base_url=config['docker_url'])
+        # filenames should be ignored
+        self.ignores = {*ignores}
+        self.image = 'sandbox'  # str
+        self.src_dir = src_dir
+        self.client = docker.DockerClient.from_env()
+        self.container = None
 
     def run(self):
         # docker container settings
-        stdin_path = '/dev/null' if not self.stdin_path else '/testdata/in'
-        command_sandbox = 'python3 main.py'
         volume = {
             self.src_dir: {
-                'bind': '/src',
+                'bind': '/sandbox',
                 'mode': 'rw'
             },
-            self.stdin_path: {
-                'bind': '/testdata/in',
-                'mode': 'ro'
-            }
         }
-        container_working_dir = '/src'
-        host_config = self.client.create_host_config(
-            binds={
-                self.src_dir: {
-                    'bind': '/src',
-                    'mode': 'rw'
-                },
-                self.stdin_path: {
-                    'bind': '/testdata/in',
-                    'mode': 'ro'
-                }
-            })
-
-        container = self.client.create_container(
+        # create container
+        self.container = self.client.containers.create(
             image=self.image,
-            command=command_sandbox,
+            command='python3 main.py',
             volumes=volume,
             network_disabled=True,
-            working_dir=container_working_dir,
-            host_config=host_config)
-        if container.get('Warning'):
-            docker_msg = container.get('Warning')
+            working_dir=self.base_dir,
+        )
+        if self.container.get('Warning'):
+            docker_msg = self.container.get('Warning')
             logging.warning(f'Warning: {docker_msg}')
-
-        # start and wait container
-        self.client.start(container)
-
         try:
-            exit_status = self.client.wait(container,
-                                           timeout=5 * self.time_limit)
-        except e:
-            self.client.remove_container(container, v=True, force=True)
+            # start and wait container
+            self.container.start()
+            exit_status = self.container.wait(timeout=5 * self.time_limit)
+            logging.debug(f'get docker response: {exit_status}')
+        except APIError as e:
+            self.client.remove_container(
+                self.container,
+                force=True,
+            )
             logging.error(e)
             return {'Status': 'JE'}
-
+        # no other process needed
+        except ReadTimeout:
+            pass
         # result retrive
         try:
-            result = self.get(container=container,
-                              path='/result/',
-                              filename='result').split('\n')
-            stdout = self.get(container=container,
-                              path='/result/',
-                              filename='stdout')
-            stderr = self.get(container=container,
-                              path='/result/',
-                              filename='stderr')
-        except e:
-            self.client.remove_container(container, v=True, force=True)
+            stdout, stderr = self.container.logs(
+                stdout=True,
+                stderr=True,
+            )
+            files = self.get_files()
+        except APIError as e:
+            self.client.remove_container(
+                self.container,
+                force=True,
+            )
             logging.error(e)
             return {'Status': 'JE'}
-
-        self.client.remove_container(container, v=True, force=True)
-
+        # remove containers
+        self.container.remove(force=True)
         return {
-            'Status': result[0],
-            'Duration': int(result[2]),
-            'MemUsage': int(result[3]),
-            'Stdout': stdout,
-            'Stderr': stderr,
-            'ExitMsg': result[1],
-            'DockerError': exit_status['Error'],
-            'DockerExitCode': exit_status['StatusCode']
-        }  # Stdout:str Stderr:str Duration:int(ms) MemUsage:int(kb)
+            'stdout': stdout,
+            'stderr': stderr,
+            'files': files,
+            'error': exit_status['Error'],
+            'exitCode': exit_status['StatusCode'],
+        }
 
-    def get(self, container, path, filename):
-        bits, stat = self.client.get_archive(container, f'{path}{filename}')
+    def get_files(self):
+        if self.container is None:
+            return
+        # get user dir archive
+        bits, stat = self.container.get_archive(self.base_dir)
+        # extract files
         tarbits = b''.join(chunk for chunk in bits)
         tar = tarfile.open(fileobj=BytesIO(tarbits))
         extract_path = f'/tmp/{uuid1()}'
-        tar.extract(filename, extract_path)
-        with open(f'{extract_path}/{filename}', 'r') as f:
-            contents = f.read()
-        os.remove(f'{extract_path}/{filename}')
-        os.rmdir(extract_path)
-        return contents
+        tar.extractall(extract_path)
+        extract_path = Path(extract_path)
+        # save files {name: data}
+        ret = {}
+        for f in extract_path.iterdir():
+            # ignored files
+            if f.name in self.ignores:
+                continue
+            ret[f.name] = f.open('rb')
+        # remove tmp data
+        shutil.rmtree(extract_path)
+        return ret
