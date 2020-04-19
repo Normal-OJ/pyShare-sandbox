@@ -67,13 +67,15 @@ def backup_data(submission_id):
     shutil.move(submission_dir, dest)
 
 
-def recieve_result(submission_id, data):
-    post_data = request.get_json()
-    post_data['token'] = SANDBOX_TOKEN
+def recieve_result(
+    submission_id: str,
+    data: dict,
+):
+    data['token'] = SANDBOX_TOKEN
     logger.info(f'send {submission_id} to BE server')
     resp = requests.put(
         f'{BACKEND_API}/submission/{submission_id}/complete',
-        json=post_data,
+        data=data,
     )
     logger.debug(f'get BE response: [{resp.status_code}] {resp.text}', )
     # clear
@@ -145,8 +147,8 @@ def status():
             'queueSize': DISPATCHER.queue.qsize(),
             'maxTaskCount': DISPATCHER.max_task_count,
             'containerCount': DISPATCHER.container_count,
-            'maxContainerCount': DISPATCHER.max_task_count,
-            'submissions': [*DISPATCHER.result.keys()],
+            'maxContainerCount': DISPATCHER.max_container_count,
+            'submissions': [*DISPATCHER.result],
             'running': DISPATCHER.do_run,
         })
     return jsonify(ret), 200
