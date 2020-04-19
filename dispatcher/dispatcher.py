@@ -15,6 +15,7 @@ from .exception import *
 class Dispatcher(threading.Thread):
     def __init__(
         self,
+        on_complete,
         dispatcher_config='.config/dispatcher.json',
         base_dir='submissions',
         host_dir='/submissions',
@@ -45,6 +46,8 @@ class Dispatcher(threading.Thread):
         # manage containers
         self.max_container_count = config.get('MAX_CONTAINER_COUNT', 8)
         self.container_count = 0
+        # completion handler
+        self.on_complete = on_complete
 
     @property
     def logger(self) -> logging.Logger:
@@ -164,22 +167,9 @@ class Dispatcher(threading.Thread):
         if self.testing:
             self.logger.info(
                 'current in testing'
-                f'skip send {submission_id} result to http handler', )
+                f'skip submission [{submission_id}] completion', )
             return True
         # post data
-        self.logger.debug(f'{submission_id} send to http handler')
-        resp = requests.post(
-            f'{self.HTTP_HANDLER_URL}/result/{submission_id}',
-            data=res,
-        )
-        self.logger.info(f'finish submission {submission_id}')
+        self.on_complete(submission_id, res)
         # remove this submission
         self.result.remove(submission_id)
-        # some error occurred
-        if resp.status_code != 200:
-            self.logger.warning(
-                'dispatcher receive err\n'
-                f'status code: {resp.status_code}\n'
-                f'msg: {resp.text}', )
-            return False
-        return True
