@@ -1,6 +1,7 @@
 import logging
 import tarfile
 import shutil
+from io import BytesIO
 from uuid import uuid1
 from pathlib import Path
 
@@ -86,7 +87,7 @@ class Sandbox:
 
     def get_files(self):
         if self.container is None:
-            return
+            return []
         # get user dir archive
         bits, stat = self.container.get_archive(self.base_dir)
         # extract files
@@ -96,12 +97,12 @@ class Sandbox:
         tar.extractall(extract_path)
         extract_path = Path(extract_path)
         # save files {name: data}
-        ret = {}
+        ret = []
         for f in extract_path.iterdir():
             # ignored files
             if f.name in self.ignores:
                 continue
-            ret[f.name] = f.open('rb')
+            ret.append(f.open('rb'))
         # remove tmp data
         shutil.rmtree(extract_path)
         return ret
