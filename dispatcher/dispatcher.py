@@ -74,7 +74,7 @@ class Dispatcher(threading.Thread):
         self.logger.info(f'receive submission {submission_id}.')
         submission_path = self.get_path(submission_id)
         # check whether the submission directory exist
-        if not submission_path.exist():
+        if not submission_path.exists():
             raise FileNotFoundError(
                 f'submission id: {submission_id} file not found.')
         elif not submission_path.is_dir():
@@ -83,9 +83,6 @@ class Dispatcher(threading.Thread):
         if submission_id in self.result:
             raise DuplicatedSubmissionIdError(
                 f'duplicated submission id {submission_id}.')
-        # read submission meta
-        with open(f'{submission_path}/meta.json') as f:
-            submission_config = json.load(f)
         self.result.add(submission_id)
         self.logger.debug(f'current submissions: {[*self.result]}')
         try:
@@ -151,7 +148,7 @@ class Dispatcher(threading.Thread):
             time_limit=time_limit,
             mem_limit=mem_limit,
             src_dir=str(base_dir.absolute()),
-            ignores=(f.name for f in base_dir.iterdir()),
+            ignores=[f.name for f in base_dir.iterdir()],
         ).run()
         self.container_count -= 1
         self.logger.info(f'finish task {submission_id}')

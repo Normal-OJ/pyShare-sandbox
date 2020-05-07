@@ -101,7 +101,7 @@ DISPATCHER = Dispatcher(
 DISPATCHER.start()
 
 
-@app.route('/submit/<submission_id>', methods=['POST'])
+@app.route('/<submission_id>', methods=['POST'])
 def submit(submission_id):
     token = request.values['token']
     if not secrets.compare_digest(token, SANDBOX_TOKEN):
@@ -116,9 +116,9 @@ def submit(submission_id):
         a.save(submission_dir / a.filename)
     # save source code
     code = request.values['src']
-    if type(code) != type(str):
+    if type(code) != type(''):
         return 'code should be string', 400
-    code.save(submission_dir / 'main.py')
+    Path(submission_dir / 'main.py').write_text(code)
     logger.debug(f'send submission {submission_id} to dispatcher')
     try:
         DISPATCHER.handle(submission_id)
