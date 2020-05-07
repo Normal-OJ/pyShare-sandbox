@@ -94,8 +94,6 @@ DISPATCHER_CONFIG = os.environ.get(
 )
 DISPATCHER = Dispatcher(
     dispatcher_config=DISPATCHER_CONFIG,
-    base_dir=SUBMISSION_DIR,
-    host_dir=SUBMISSION_HOST_DIR,
     on_complete=recieve_result,
 )
 DISPATCHER.start()

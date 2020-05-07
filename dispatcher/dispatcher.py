@@ -17,8 +17,6 @@ class Dispatcher(threading.Thread):
         self,
         on_complete,
         dispatcher_config='.config/dispatcher.json',
-        base_dir='submissions',
-        host_dir='/submissions',
     ):
         super().__init__()
         self.testing = False
@@ -32,19 +30,19 @@ class Dispatcher(threading.Thread):
         # flag to decided whether the thread should run
         self.do_run = True
         # submission location (inside container)
-        self.base_dir = Path(base_dir)
+        self.base_dir = Path(config.get('base_dir', 'submissions'))
         self.base_dir.mkdir(exist_ok=True)
         # host dir must be the mount point of base dir
-        self.host_dir = Path(host_dir)
+        self.host_dir = Path(config.get('host_dir', '/submissions'))
         # task queue
         # type Queue[Tuple[submission_id, task_no]]
-        self.max_task_count = config.get('QUEUE_SIZE', 16)
+        self.max_task_count = config.get('queue_size', 16)
         self.queue = queue.Queue(self.max_task_count)
         # task result
         # type: Dict[submission_id, Tuple[submission_info, List[result]]]
         self.result = set()
         # manage containers
-        self.max_container_count = config.get('MAX_CONTAINER_COUNT', 8)
+        self.max_container_count = config.get('max_container_count', 8)
         self.container_count = 0
         # completion handler
         self.on_complete = on_complete
