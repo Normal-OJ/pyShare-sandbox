@@ -90,7 +90,7 @@ def recieve_result(
 # setup dispatcher
 DISPATCHER_CONFIG = os.environ.get(
     'DISPATCHER_CONFIG',
-    '.config/dispatcher.json.example',
+    '.config/dispatcher.json',
 )
 DISPATCHER = Dispatcher(
     dispatcher_config=DISPATCHER_CONFIG,
