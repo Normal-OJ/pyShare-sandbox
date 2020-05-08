@@ -141,12 +141,11 @@ class Dispatcher(threading.Thread):
         if submission_id not in self.result:
             raise SubmissionIdNotFoundError(f'{submission_id} not found!')
         self.container_count += 1
-        base_dir = self.get_host_path(submission_id)
         res = Sandbox(
             time_limit=time_limit,
             mem_limit=mem_limit,
-            src_dir=str(base_dir.absolute()),
-            ignores=[f.name for f in base_dir.iterdir()],
+            src_dir=str(self.get_host_path(submission_id).absolute()),
+            ignores=[f.name for f in self.get_path(submission_id).iterdir()],
         ).run()
         self.container_count -= 1
         self.logger.info(f'finish task {submission_id}')
