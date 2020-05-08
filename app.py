@@ -72,14 +72,21 @@ def recieve_result(
     data: dict,
 ):
     data['token'] = SANDBOX_TOKEN
+    # extract files
+    files = [(
+        'files',
+        (f.name.split('/')[-1], f, None),
+    ) for f in data['files']]
+    del data['files']
     logger.info(f'send {submission_id} to BE server')
     resp = requests.put(
         f'{BACKEND_API}/submission/{submission_id}/complete',
         data=data,
+        files=files,
     )
     logger.debug(f'get BE response: [{resp.status_code}] {resp.text}', )
     # clear
-    if resp.status_code == 200:
+    if resp.status_code == 200 and app.logger.level != logging.DEBUG:
         clean_data(submission_id)
     # copy to another place
     else:
