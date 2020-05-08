@@ -36,26 +36,24 @@ class Sandbox:
             },
         }
         # create container
+        logging.debug(f'base dir: {self.src_dir}')
         self.container = self.client.containers.create(
             image=self.image,
             command='python3 main.py',
             volumes=volume,
             network_disabled=True,
-            working_dir=self.base_dir,
+            working_dir='/sandbox',
         )
-        if self.container.get('Warning'):
-            docker_msg = self.container.get('Warning')
-            logging.warning(f'Warning: {docker_msg}')
+        # if self.container.get('Warning'):
+        #     docker_msg = self.container.get('Warning')
+        #     logging.warning(f'Warning: {docker_msg}')
         try:
             # start and wait container
             self.container.start()
             exit_status = self.container.wait(timeout=5 * self.time_limit)
             logging.debug(f'get docker response: {exit_status}')
         except APIError as e:
-            self.client.remove_container(
-                self.container,
-                force=True,
-            )
+            self.container.remove(force=True)
             logging.error(e)
             return {'Status': 'JE'}
         # no other process needed
@@ -63,16 +61,17 @@ class Sandbox:
             pass
         # result retrive
         try:
-            stdout, stderr = self.container.logs(
+            stdout = self.container.logs(
                 stdout=True,
+                stderr=False,
+            ).decode('utf-8')
+            stderr = self.container.logs(
+                stdout=False,
                 stderr=True,
-            )
+            ).decode('utf-8')
             files = self.get_files()
         except APIError as e:
-            self.client.remove_container(
-                self.container,
-                force=True,
-            )
+            self.container.remove(force=True)
             logging.error(e)
             return {'Status': 'JE'}
         # remove containers
@@ -89,13 +88,13 @@ class Sandbox:
         if self.container is None:
             return []
         # get user dir archive
-        bits, stat = self.container.get_archive(self.base_dir)
+        bits, stat = self.container.get_archive('/sandbox')
         # extract files
         tarbits = b''.join(chunk for chunk in bits)
         tar = tarfile.open(fileobj=BytesIO(tarbits))
         extract_path = f'/tmp/{uuid1()}'
         tar.extractall(extract_path)
-        extract_path = Path(extract_path)
+        extract_path = Path(extract_path) / 'sandbox'
         # save files {name: data}
         ret = []
         for f in extract_path.iterdir():
@@ -105,4 +104,5 @@ class Sandbox:
             ret.append(f.open('rb'))
         # remove tmp data
         shutil.rmtree(extract_path)
+        logging.info(f'extract files {[f.name for f in ret]}')
         return ret
