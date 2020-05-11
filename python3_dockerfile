@@ -1,15 +1,9 @@
-FROM ubuntu:18.04
+FROM python:3.8
 MAINTAINER Normal-OJ
 
-# update
-RUN apt update -y
-RUN apt install python3 wget python3-distutils -y
-# install python packages
-RUN wget https://bootstrap.pypa.io/get-pip.py
-RUN python3 get-pip.py
 COPY snadbox-requirements.txt snadbox-requirements.txt
 RUN pip3 install -r snadbox-requirements.txt
 # sandbox user with uid:1450
-RUN useradd sandbox -u 1450
+# RUN useradd sandbox -u 1450
 # USER sandbox
 WORKDIR /sandbox
