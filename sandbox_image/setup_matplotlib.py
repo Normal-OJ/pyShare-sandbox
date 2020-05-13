@@ -1,6 +1,7 @@
 from pathlib import Path
 import matplotlib
 import shutil
+import re
 
 # get locations
 mpl_data_dir = Path(matplotlib.matplotlib_fname()).parent
@@ -14,12 +15,17 @@ old_rc = mpl_rc.read_text()
 new_rc = old_rc.replace(
     '#font.family',
     'font.family',
-).replace(  # at least support Noto Sans TC
-    '#font.sans-serif     : ',
-    'font.sans-serif     : Noto Sans TC, ',
-).replace(
-    '#axes.unicode_minus  : True',
-    'axes.unicode_minus  : False',
+)
+# at least support Noto Sans TC
+new_rc = re.sub(
+    r'#font.sans-serif ?: ',
+    'font.sans-serif : Noto Sans TC, ',
+    new_rc,
+)
+new_rc = re.sub(
+    r'#axes.unicode_minus ?: True',
+    'axes.unicode_minus : False',
+    new_rc,
 )
 with open(mpl_rc, 'w') as f:
     f.write(new_rc)
