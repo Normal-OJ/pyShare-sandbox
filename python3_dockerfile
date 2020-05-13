@@ -1,9 +1,0 @@
-FROM python:3.8
-MAINTAINER Normal-OJ
-
-COPY snadbox-requirements.txt snadbox-requirements.txt
-RUN pip3 install -r snadbox-requirements.txt
-# sandbox user with uid:1450
-# RUN useradd sandbox -u 1450
-# USER sandbox
-WORKDIR /sandbox
