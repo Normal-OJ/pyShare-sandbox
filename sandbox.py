@@ -43,14 +43,12 @@ class Sandbox:
             volumes=volume,
             network_disabled=True,
             working_dir='/sandbox',
+            mem_limit=f'{self.mem_limit}k',
         )
-        # if self.container.get('Warning'):
-        #     docker_msg = self.container.get('Warning')
-        #     logging.warning(f'Warning: {docker_msg}')
         try:
             # start and wait container
             self.container.start()
-            exit_status = self.container.wait(timeout=5 * self.time_limit)
+            exit_status = self.container.wait(timeout=self.time_limit)
             logging.debug(f'get docker response: {exit_status}')
         except APIError as e:
             self.container.remove(force=True)
