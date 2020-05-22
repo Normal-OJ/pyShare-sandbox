@@ -10,20 +10,35 @@ from docker.errors import APIError
 from requests.exceptions import ReadTimeout
 
 
+class OutputLimitExceed(Exception):
+    pass
+
+
+class SandboxResult:
+    SUCCESS = 0
+    OUTPUT_LIMIT_EXCEED = 1
+    JUDGER_ERROR = 2
+
+
 class Sandbox:
     def __init__(
         self,
         time_limit: int,
         mem_limit: int,
+        output_size_limit: int,
+        file_size_limit: int,
         src_dir: str,
         ignores: list,
     ):
         self.time_limit = time_limit  # int:ms
         self.mem_limit = mem_limit  # int:kb
+        self.file_size_limit = file_size_limit  # int:byte
+        self.output_size_limit = output_size_limit  # int:byte
         # filenames should be ignored
         self.ignores = {*ignores}
         self.image = 'sandbox'  # str
         self.src_dir = src_dir
+        self.working_dir = '/sandbox'
         self.client = docker.DockerClient.from_env()
         self.container = None
 
@@ -31,7 +46,7 @@ class Sandbox:
         # docker container settings
         volume = {
             self.src_dir: {
-                'bind': '/sandbox',
+                'bind': self.working_dir,
                 'mode': 'rw'
             },
         }
@@ -42,8 +57,11 @@ class Sandbox:
             command='python3 main.py',
             volumes=volume,
             network_disabled=True,
-            working_dir='/sandbox',
+            working_dir=self.working_dir,
             mem_limit=f'{self.mem_limit}k',
+            # storage_opt={
+            #     'size': '64M',
+            # },
         )
         try:
             # start and wait container
@@ -53,43 +71,68 @@ class Sandbox:
         except APIError as e:
             self.container.remove(force=True)
             logging.error(e)
-            return {'Status': 'JE'}
+            return {'status': SandboxResult.JUDGER_ERROR}
         # no other process needed
         except ReadTimeout:
             pass
         # result retrive
         try:
+            # assume judge successfful
+            status = SandboxResult.SUCCESS
+            # check output size
             stdout = self.container.logs(
                 stdout=True,
                 stderr=False,
-            ).decode('utf-8')
+            )
             stderr = self.container.logs(
                 stdout=False,
                 stderr=True,
-            ).decode('utf-8')
-            files = self.get_files()
+            )
+            if len(stdout) > self.output_size_limit or \
+                 len(stderr) > self.output_size_limit:
+                stdout = ''
+                stderr = 'pyShare: 輸出大小超過系統限制，無法評測！'
+                files = []
+                status = SandboxResult.OUTPUT_LIMIT_EXCEED
+            else:
+                stdout = stdout.decode('utf-8')
+                stderr = stderr.decode('utf-8')
+            # try to get files
+            try:
+                files = self.get_files()
+            except OutputLimitExceed:
+                stdout = ''
+                stderr = 'pyShare: 輸出檔案大小超過系統限制，無法評測！'
+                files = []
+                status = SandboxResult.OUTPUT_LIMIT_EXCEED
         except APIError as e:
             self.container.remove(force=True)
             logging.error(e)
-            return {'Status': 'JE'}
-        # remove containers
-        self.container.remove(force=True)
-        return {
-            'stdout': stdout,
-            'stderr': stderr,
-            'files': files,
-            'error': exit_status['Error'],
-            'exitCode': exit_status['StatusCode'],
-        }
+            return {'status': SandboxResult.JUDGER_ERROR}
+        finally:
+            # remove containers
+            self.container.remove(force=True)
+            return {
+                'stdout': stdout,
+                'stderr': stderr,
+                'files': files,
+                'error': exit_status['Error'],
+                'exitCode': exit_status['StatusCode'],
+                'status': status,
+            }
 
     def get_files(self):
         if self.container is None:
             return []
         # get user dir archive
         bits, stat = self.container.get_archive('/sandbox')
-        # extract files
         tarbits = b''.join(chunk for chunk in bits)
         tar = tarfile.open(fileobj=BytesIO(tarbits))
+        # check file size
+        total_size = sum(info.size for info in tar.getmembers())
+        if total_size > self.file_size_limit:
+            raise OutputLimitExceed
+        # extract files
         extract_path = f'/tmp/{uuid1()}'
         tar.extractall(extract_path)
         extract_path = Path(extract_path) / 'sandbox'
