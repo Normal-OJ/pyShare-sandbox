@@ -91,7 +91,7 @@ class Sandbox:
             if len(stdout) > self.output_size_limit or \
                  len(stderr) > self.output_size_limit:
                 stdout = ''
-                stderr = 'pyShare: 輸出大小超過系統限制，無法評測！'
+                stderr = '執行失敗: 輸出大小超過系統限制，無法評測！'
                 files = []
                 status = SandboxResult.OUTPUT_LIMIT_EXCEED
             else:
@@ -102,7 +102,7 @@ class Sandbox:
                 files = self.get_files()
             except OutputLimitExceed:
                 stdout = ''
-                stderr = 'pyShare: 輸出檔案大小超過系統限制，無法評測！'
+                stderr = '執行失敗: 輸出檔案大小超過系統限制，無法評測！'
                 files = []
                 status = SandboxResult.OUTPUT_LIMIT_EXCEED
         except APIError as e:

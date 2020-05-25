@@ -127,7 +127,7 @@ class Dispatcher(threading.Thread):
                     'mem_limit': 128000,  # 128 MB
                     'time_limit': 10000,  # 10s
                     'file_size_limit': 64 * 10**6,
-                    'output_size_limit': 10**6,
+                    'output_size_limit': 4096,  # 4KB
                 },
             ).start()
 
