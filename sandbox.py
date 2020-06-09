@@ -142,6 +142,9 @@ class Sandbox:
             # ignored files
             if f.name in self.ignores:
                 continue
+            # skip directory
+            if f.is_dir():
+                continue
             ret.append(f.open('rb'))
         # remove tmp data
         shutil.rmtree(extract_path)
