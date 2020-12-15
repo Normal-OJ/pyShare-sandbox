@@ -54,7 +54,7 @@ class Sandbox:
         logging.debug(f'base dir: {self.src_dir}')
         self.container = self.client.containers.create(
             image=self.image,
-            command='python3 main.py',
+            command=f'timeout {self.time_limit} python3 main.py',
             volumes=volume,
             network_disabled=True,
             working_dir=self.working_dir,
