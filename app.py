@@ -1,6 +1,6 @@
 import os
 import json
-import zipfile
+from zipfile import ZipFile
 import glob
 import logging
 import shutil
@@ -119,6 +119,11 @@ def submit(submission_id):
     atts = request.files.getlist('attachments')
     for a in atts:
         a.save(submission_dir / a.filename)
+    # save input and output
+    testcase = request.files.get('testcase')
+    if testcase is not None:
+        with ZipFile(testcase, 'r') as z:
+            z.extractall(submission_dir)
     # save source code
     code = request.values['src']
     if type(code) != type(''):

@@ -41,6 +41,7 @@ class Sandbox:
         self.working_dir = '/sandbox'
         self.client = docker.DockerClient.from_env()
         self.container = None
+        self.is_OJ = os.path.exists(f'{src_dir}/input')
 
     def run(self):
         # docker container settings
@@ -52,9 +53,13 @@ class Sandbox:
         }
         # create container
         logging.debug(f'base dir: {self.src_dir}')
+        # has input and output
+        extra = ''
+        if self.is_OJ:
+            extra = ' < input'
         self.container = self.client.containers.create(
             image=self.image,
-            command='python3 main.py',
+            command='python3 main.py' + extra,
             volumes=volume,
             network_disabled=True,
             working_dir=self.working_dir,
@@ -112,7 +117,7 @@ class Sandbox:
         finally:
             # remove containers
             self.container.remove(force=True)
-            return {
+            ret = {
                 'stdout': stdout,
                 'stderr': stderr,
                 'files': files,
@@ -120,6 +125,17 @@ class Sandbox:
                 'exitCode': exit_status['StatusCode'],
                 'status': status,
             }
+            # add OJ result
+            if self.is_OJ:
+                if status == SandboxResult.OUTPUT_LIMIT_EXCEED:
+                    ret['result'] = 3
+                else:
+                    with open(f'{self.src_dir}/output', 'r') as f:
+                        if f.read() == stdout:
+                            ret['result'] = 0
+                        else:
+                            ret['result'] = 1
+            return ret
 
     def get_files(self):
         if self.container is None:
