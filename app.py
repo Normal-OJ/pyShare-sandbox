@@ -110,7 +110,7 @@ DISPATCHER.start()
 def submit(submission_id):
     token = request.values['token']
     if not secrets.compare_digest(token, SANDBOX_TOKEN):
-        app.logger.debug(f'get invalid token: {token}')
+        logger.debug(f'get invalid token: {token}')
         return 'invalid token', 403
     # make submission directory
     submission_dir = SUBMISSION_DIR / submission_id
@@ -128,7 +128,7 @@ def submit(submission_id):
     code = request.values['src']
     if type(code) != type(''):
         return 'code should be string', 400
-    Path(submission_dir / 'main.py').write_text(code)
+    (submission_dir / 'main.py').write_text(code)
     logger.debug(f'send submission {submission_id} to dispatcher')
     try:
         DISPATCHER.handle(submission_id)

@@ -56,10 +56,10 @@ class Sandbox:
         # has input and output
         extra = ''
         if self.is_OJ:
-            extra = ' < input'
+            extra = '< input'
         self.container = self.client.containers.create(
             image=self.image,
-            command='python3 main.py' + extra,
+            command=f'timeout {self.time_limit} python3 main.py {extra}',
             volumes=volume,
             network_disabled=True,
             working_dir=self.working_dir,

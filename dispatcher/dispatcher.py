@@ -2,7 +2,6 @@ import json
 import os
 import threading
 import time
-import requests
 import queue
 import logging
 import textwrap
@@ -87,7 +86,7 @@ class Dispatcher(threading.Thread):
             # put (submission_id, case_no)
             self.queue.put_nowait(submission_id)
         except queue.Full as e:
-            del self.result[submission_id]
+            self.result.remove(submission_id)
             raise e
         return True
 
@@ -125,7 +124,7 @@ class Dispatcher(threading.Thread):
                 kwargs={
                     'submission_id': submission_id,
                     'mem_limit': 128000,  # 128 MB
-                    'time_limit': 10000,  # 10s
+                    'time_limit': 10,  # 10s
                     'file_size_limit': 64 * 10**6,
                     'output_size_limit': 4096,  # 4KB
                 },
