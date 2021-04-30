@@ -4,6 +4,7 @@ import shutil
 from io import BytesIO
 from uuid import uuid1
 from pathlib import Path
+import os
 
 import docker
 from docker.errors import APIError
