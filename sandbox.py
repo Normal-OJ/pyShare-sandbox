@@ -30,6 +30,7 @@ class Sandbox:
         file_size_limit: int,
         src_dir: str,
         ignores: list,
+        container_src_dir: str,
     ):
         self.time_limit = time_limit  # int:ms
         self.mem_limit = mem_limit  # int:kb
@@ -42,7 +43,8 @@ class Sandbox:
         self.working_dir = '/sandbox'
         self.client = docker.DockerClient.from_env()
         self.container = None
-        self.is_OJ = os.path.exists(f'{src_dir}/input')
+        self.container_src_dir = container_src_dir
+        self.is_OJ = os.path.exists(f'{container_src_dir}/input')
 
     def run(self):
         # docker container settings
@@ -131,11 +133,10 @@ class Sandbox:
                 if status == SandboxResult.OUTPUT_LIMIT_EXCEED:
                     ret['result'] = 3
                 else:
-                    with open(f'{self.src_dir}/output', 'r') as f:
+                    ret['result'] = 1
+                    with open(f'{self.container_src_dir}/output', 'r') as f:
                         if f.read() == stdout:
                             ret['result'] = 0
-                        else:
-                            ret['result'] = 1
             return ret
 
     def get_files(self):

@@ -143,6 +143,7 @@ class Dispatcher(threading.Thread):
         self.container_count += 1
         res = Sandbox(
             src_dir=str(self.get_host_path(submission_id).absolute()),
+            container_src_dir=str(self.get_path(submission_id).absolute()),
             ignores=[
                 '__pycache__',
             ] + [f.name for f in self.get_path(submission_id).iterdir()],
