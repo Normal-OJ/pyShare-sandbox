@@ -54,15 +54,16 @@ class Sandbox:
                 'mode': 'rw'
             },
         }
-        # create container
-        logging.debug(f'base dir: {self.src_dir}')
         # has input and output
         extra = ''
         if self.is_OJ:
             extra = '< input'
+        command = f'timeout {self.time_limit} python3 main.py {extra}'
         self.container = self.client.containers.create(
             image=self.image,
-            command=f'timeout {self.time_limit} python3 main.py {extra}',
+            # FIXME: Use `sh` to include can correctly get the redirected input
+            #   But...why?
+            command=['sh', '-c', command],
             volumes=volume,
             network_disabled=True,
             working_dir=self.working_dir,
@@ -85,7 +86,7 @@ class Sandbox:
             pass
         # result retrive
         try:
-            # assume judge successfful
+            # assume judge successful
             status = SandboxResult.SUCCESS
             # check output size
             stdout = self.container.logs(
@@ -143,8 +144,8 @@ class Sandbox:
         if self.container is None:
             return []
         # get user dir archive
-        bits, stat = self.container.get_archive('/sandbox')
-        tarbits = b''.join(chunk for chunk in bits)
+        bits, _ = self.container.get_archive('/sandbox')
+        tarbits = b''.join(bits)
         tar = tarfile.open(fileobj=BytesIO(tarbits))
         # check file size
         total_size = sum(info.size for info in tar.getmembers())
