@@ -134,15 +134,16 @@ class Dispatcher(threading.Thread):
         self.do_run = False
 
     def create_container(
-            self,
-            submission_id: str,
-            **ks,  # pass to sandbox
+        self,
+        submission_id: str,
+        **ks,  # pass to sandbox
     ):
         if submission_id not in self.result:
             raise SubmissionIdNotFoundError(f'{submission_id} not found!')
         self.container_count += 1
         res = Sandbox(
             src_dir=str(self.get_host_path(submission_id).absolute()),
+            container_src_dir=str(self.get_path(submission_id).absolute()),
             ignores=[
                 '__pycache__',
             ] + [f.name for f in self.get_path(submission_id).iterdir()],

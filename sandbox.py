@@ -4,6 +4,7 @@ import shutil
 from io import BytesIO
 from uuid import uuid1
 from pathlib import Path
+import os
 
 import docker
 from docker.errors import APIError
@@ -29,6 +30,7 @@ class Sandbox:
         file_size_limit: int,
         src_dir: str,
         ignores: list,
+        container_src_dir: str,
     ):
         self.time_limit = time_limit  # int:ms
         self.mem_limit = mem_limit  # int:kb
@@ -41,6 +43,8 @@ class Sandbox:
         self.working_dir = '/sandbox'
         self.client = docker.DockerClient.from_env()
         self.container = None
+        self.container_src_dir = container_src_dir
+        self.is_OJ = os.path.exists(f'{container_src_dir}/input')
 
     def run(self):
         # docker container settings
@@ -50,11 +54,16 @@ class Sandbox:
                 'mode': 'rw'
             },
         }
-        # create container
-        logging.debug(f'base dir: {self.src_dir}')
+        # has input and output
+        extra = ''
+        if self.is_OJ:
+            extra = '< input'
+        command = f'timeout {self.time_limit} python3 main.py {extra}'
         self.container = self.client.containers.create(
             image=self.image,
-            command=f'timeout {self.time_limit} python3 main.py',
+            # FIXME: Use `sh` to include can correctly get the redirected input
+            #   But...why?
+            command=['sh', '-c', command],
             volumes=volume,
             network_disabled=True,
             working_dir=self.working_dir,
@@ -77,7 +86,7 @@ class Sandbox:
             pass
         # result retrive
         try:
-            # assume judge successfful
+            # assume judge successful
             status = SandboxResult.SUCCESS
             # check output size
             stdout = self.container.logs(
@@ -112,7 +121,7 @@ class Sandbox:
         finally:
             # remove containers
             self.container.remove(force=True)
-            return {
+            ret = {
                 'stdout': stdout,
                 'stderr': stderr,
                 'files': files,
@@ -120,13 +129,23 @@ class Sandbox:
                 'exitCode': exit_status['StatusCode'],
                 'status': status,
             }
+            # add OJ result
+            if self.is_OJ:
+                if status == SandboxResult.OUTPUT_LIMIT_EXCEED:
+                    ret['result'] = 3
+                else:
+                    ret['result'] = 1
+                    with open(f'{self.container_src_dir}/output', 'r') as f:
+                        if f.read() == stdout:
+                            ret['result'] = 0
+            return ret
 
     def get_files(self):
         if self.container is None:
             return []
         # get user dir archive
-        bits, stat = self.container.get_archive('/sandbox')
-        tarbits = b''.join(chunk for chunk in bits)
+        bits, _ = self.container.get_archive('/sandbox')
+        tarbits = b''.join(bits)
         tar = tarfile.open(fileobj=BytesIO(tarbits))
         # check file size
         total_size = sum(info.size for info in tar.getmembers())
