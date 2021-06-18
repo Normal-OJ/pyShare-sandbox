@@ -4,4 +4,4 @@ numpy
 pandas
 seaborn
 pygal
-
+sklearn
