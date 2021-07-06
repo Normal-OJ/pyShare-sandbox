@@ -136,7 +136,7 @@ class Sandbox:
                 else:
                     ret['result'] = 1
                     with open(f'{self.container_src_dir}/output', 'r') as f:
-                        if f.read() == stdout:
+                        if self.strip(f.read()) == self.strip(stdout):
                             ret['result'] = 0
             return ret
 
@@ -169,3 +169,12 @@ class Sandbox:
         shutil.rmtree(extract_path)
         logging.info(f'extract files {[f.name for f in ret]}')
         return ret
+
+    @classmethod
+    def strip(cls, s: str) -> list:
+        # strip trailing space for each line
+        ss = [s.rstrip() for s in s.splitlines()]
+        # strip redundant new line
+        while len(ss) and ss[-1] == '':
+            del ss[-1]
+        return ss
