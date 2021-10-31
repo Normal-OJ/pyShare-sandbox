@@ -6,14 +6,16 @@ from sandbox import Sandbox
 
 
 class SubmissionRunner():
-    def __init__(self,
-                 submission_id,
-                 time_limit,
-                 mem_limit,
-                 testdata_input_path,
-                 testdata_output_path,
-                 special_judge=False,
-                 lang=None):
+    def __init__(
+        self,
+        submission_id,
+        time_limit,
+        mem_limit,
+        testdata_input_path,
+        testdata_output_path,
+        special_judge=False,
+        lang=None,
+    ):
         # config file
         with open('.config/submission.json') as f:
             config = json.load(f)
@@ -40,7 +42,8 @@ class SubmissionRunner():
             image=self.image[self.lang],
             src_dir=f'{self.working_dir}/{self.submission_id}/src',
             lang_id=self.lang_id[self.lang],
-            compile_need=1)
+            compile_need=1,
+        )
         result = s.run()
 
         if result['Status'] == 'Exited Normally':
@@ -50,13 +53,15 @@ class SubmissionRunner():
         return result
 
     def run(self):
-        s = Sandbox(time_limit=self.time_limit,
-                    mem_limit=self.mem_limit,
-                    image=self.image[self.lang],
-                    src_dir=f'{self.working_dir}/{self.submission_id}/src',
-                    lang_id=self.lang_id[self.lang],
-                    compile_need=0,
-                    stdin_path=self.testdata_input_path)
+        s = Sandbox(
+            time_limit=self.time_limit,
+            mem_limit=self.mem_limit,
+            image=self.image[self.lang],
+            src_dir=f'{self.working_dir}/{self.submission_id}/src',
+            lang_id=self.lang_id[self.lang],
+            compile_need=0,
+            stdin_path=self.testdata_input_path,
+        )
         result = s.run()
         # Status Process
         with open(self.testdata_output_path, 'r') as f:
