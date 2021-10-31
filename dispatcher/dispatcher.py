@@ -34,8 +34,8 @@ class Dispatcher(threading.Thread):
         # host dir must be the mount point of base dir
         self.host_dir = Path(config.get('host_dir', '/submissions'))
         # task queue
-        # type Queue[Tuple[submission_id, task_no]]
         self.max_task_count = config.get('queue_size', 16)
+        # type Queue[Tuple[submission_id, task_no]]
         self.queue = queue.Queue(self.max_task_count)
         # task result
         # type: Dict[submission_id, Tuple[submission_info, List[result]]]
@@ -45,6 +45,8 @@ class Dispatcher(threading.Thread):
         self.container_count = 0
         # completion handler
         self.on_complete = on_complete
+        # image used to judge
+        self.image = config['image']
 
     @property
     def logger(self) -> logging.Logger:
@@ -127,6 +129,7 @@ class Dispatcher(threading.Thread):
                     'time_limit': 10,  # 10s
                     'file_size_limit': 64 * 10**6,
                     'output_size_limit': 4096,  # 4KB
+                    'image': self.image,
                 },
             ).start()
 
@@ -134,9 +137,9 @@ class Dispatcher(threading.Thread):
         self.do_run = False
 
     def create_container(
-        self,
-        submission_id: str,
-        **ks,  # pass to sandbox
+            self,
+            submission_id: str,
+            **ks,  # pass to sandbox
     ):
         if submission_id not in self.result:
             raise SubmissionIdNotFoundError(f'{submission_id} not found!')
