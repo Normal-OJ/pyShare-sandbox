@@ -1,7 +1,4 @@
 import json
-
-import docker
-
 from sandbox import Sandbox
 
 
