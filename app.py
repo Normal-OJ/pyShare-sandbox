@@ -1,7 +1,5 @@
 import os
-import json
 from zipfile import ZipFile
-import glob
 import logging
 import shutil
 import requests
