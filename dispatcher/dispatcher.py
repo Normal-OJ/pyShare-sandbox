@@ -5,6 +5,8 @@ import time
 import queue
 import logging
 import textwrap
+import docker
+import docker.errors
 from pathlib import Path
 from flask import current_app
 from sandbox import Sandbox
@@ -26,7 +28,7 @@ class Dispatcher(threading.Thread):
         else:
             self.logger.warning(
                 f'dispatcher config {dispatcher_config} not found')
-        # flag to decided whether the thread should run
+        # flag to decided whether the loop should run
         self.do_run = True
         # submission location (inside container)
         self.base_dir = Path(config.get('base_dir', 'submissions'))
@@ -54,6 +56,14 @@ class Dispatcher(threading.Thread):
             return current_app.logger
         except RuntimeError:
             return logging.getLogger('gunicorn.error')
+
+    def ensure_image(self):
+        client = docker.client.from_env()
+        try:
+            client.images.get(self.image)
+        except docker.errors.ImageNotFound:
+            self.logger.info(f'Image not found. Start pulling. [{self.image}]')
+            client.images.pull(self.image)
 
     def get_path(self, submission_id) -> Path:
         return self.base_dir / submission_id
@@ -107,6 +117,7 @@ class Dispatcher(threading.Thread):
         self.do_run = True
         self.logger.debug('start dispatcher loop')
         while True:
+            self.ensure_image()
             # end the loop
             if not self.do_run:
                 self.logger.debug('exit dispatcher loop')
@@ -132,6 +143,7 @@ class Dispatcher(threading.Thread):
                     'image': self.image,
                 },
             ).start()
+            time.sleep(1)
 
     def stop(self):
         self.do_run = False
