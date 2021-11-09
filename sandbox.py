@@ -106,8 +106,8 @@ class Sandbox:
                 files = []
                 status = SandboxResult.OUTPUT_LIMIT_EXCEED
             else:
-                stdout = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                stdout = stdout.decode('utf-8', 'replace')
+                stderr = stderr.decode('utf-8', 'replace')
             # try to get files
             try:
                 files = self.get_files()
