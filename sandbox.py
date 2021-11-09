@@ -1,14 +1,16 @@
 import logging
 import tarfile
 import shutil
+import json
 from io import BytesIO
 from uuid import uuid1
 from pathlib import Path
 import os
 
 import docker
+import docker.types
 from docker.errors import APIError
-from requests.exceptions import ReadTimeout
+from requests.exceptions import ConnectionError
 
 
 class OutputLimitExceed(Exception):
@@ -54,11 +56,9 @@ class Sandbox:
                 'mode': 'rw'
             },
         }
-        # has input and output
-        extra = ''
+        command = f'python3 main.py'
         if self.is_OJ:
-            extra = '< input'
-        command = f'timeout {self.time_limit} python3 main.py {extra}'
+            command += ' < input'
         self.container = self.client.containers.create(
             image=self.image,
             # FIXME: Use `sh` to include can correctly get the redirected input
@@ -73,19 +73,24 @@ class Sandbox:
             # },
             pids_limit=8,
             nano_cpus=10**9,
+            # ulimits=[
+            #     docker.types.Ulimit('cpu', hard=1),
+            # ],
         )
         try:
             # start and wait container
             self.container.start()
-            exit_status = self.container.wait(timeout=self.time_limit)
-            logging.debug(f'get docker response: {exit_status}')
+            api_resp = self.container.wait(timeout=self.time_limit)
+            logging.debug(f'Get docker response: {json.dumps(api_resp)}')
         except APIError as e:
             self.container.remove(force=True)
-            logging.error(e)
+            logging.error(f'Docker API error [err={e}]')
             return {'status': SandboxResult.JUDGER_ERROR}
-        # no other process needed
-        except ReadTimeout:
-            pass
+        except ConnectionError:
+            self.container.remove(force=True)
+            logging.info(f'Container timeout')
+            # TODO: Add TLE status
+            return {'status': SandboxResult.JUDGER_ERROR}
         # result retrive
         try:
             # assume judge successful
@@ -118,7 +123,7 @@ class Sandbox:
                 status = SandboxResult.OUTPUT_LIMIT_EXCEED
         except APIError as e:
             self.container.remove(force=True)
-            logging.error(e)
+            logging.error(f'Docker API error [err={e}]')
             return {'status': SandboxResult.JUDGER_ERROR}
         finally:
             # remove containers
@@ -127,8 +132,8 @@ class Sandbox:
                 'stdout': stdout,
                 'stderr': stderr,
                 'files': files,
-                'error': exit_status['Error'],
-                'exitCode': exit_status['StatusCode'],
+                'error': api_resp.get('Error', None),
+                'exitCode': api_resp.get('StatusCode', None),
                 'status': status,
             }
             # add OJ result
@@ -169,7 +174,7 @@ class Sandbox:
             ret.append(f.open('rb'))
         # remove tmp data
         shutil.rmtree(extract_path)
-        logging.info(f'extract files {[f.name for f in ret]}')
+        logging.debug(f'Extract files [files={[f.name for f in ret]}]')
         return ret
 
     @classmethod
