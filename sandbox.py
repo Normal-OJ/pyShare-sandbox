@@ -71,6 +71,8 @@ class Sandbox:
             # storage_opt={
             #     'size': '64M',
             # },
+            pids_limit=8,
+            nano_cpus=10**9,
         )
         try:
             # start and wait container
