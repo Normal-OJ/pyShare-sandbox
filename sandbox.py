@@ -48,6 +48,16 @@ class Sandbox:
         self.container_src_dir = container_src_dir
         self.is_OJ = os.path.exists(f'{container_src_dir}/input')
 
+    @classmethod
+    def judge_error_result(cls):
+        return {
+            'stdout': '',
+            'stderr': '',
+            'status': SandboxResult.JUDGER_ERROR,
+            'files': [],
+            'result': 1,
+        }
+
     def run(self):
         # docker container settings
         volume = {
@@ -73,9 +83,6 @@ class Sandbox:
             # },
             pids_limit=8,
             nano_cpus=10**9,
-            # ulimits=[
-            #     docker.types.Ulimit('cpu', hard=1),
-            # ],
         )
         try:
             # start and wait container
@@ -85,12 +92,12 @@ class Sandbox:
         except APIError as e:
             self.container.remove(force=True)
             logging.error(f'Docker API error [err={e}]')
-            return {'status': SandboxResult.JUDGER_ERROR}
+            return self.judge_error_result()
         except ConnectionError:
             self.container.remove(force=True)
             logging.info(f'Container timeout')
             # TODO: Add TLE status
-            return {'status': SandboxResult.JUDGER_ERROR}
+            return self.judge_error_result()
         # result retrive
         try:
             # assume judge successful
@@ -124,7 +131,7 @@ class Sandbox:
         except APIError as e:
             self.container.remove(force=True)
             logging.error(f'Docker API error [err={e}]')
-            return {'status': SandboxResult.JUDGER_ERROR}
+            return self.judge_error_result()
         finally:
             # remove containers
             self.container.remove(force=True)
