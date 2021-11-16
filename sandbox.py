@@ -83,6 +83,9 @@ class Sandbox:
             # },
             pids_limit=8,
             nano_cpus=10**9,
+            ulimits=[
+                docker.types.Ulimit(name='cpu', hard=1),
+            ],
         )
         try:
             # start and wait container
