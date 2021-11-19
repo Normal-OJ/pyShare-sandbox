@@ -1,4 +1,4 @@
-docker
-requests
-gunicorn
-flask
+docker==5.0.3
+requests==2.26.0
+gunicorn==20.1.0
+flask==2.0.2
