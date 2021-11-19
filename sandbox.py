@@ -33,6 +33,7 @@ class Sandbox:
         src_dir: str,
         ignores: list,
         container_src_dir: str,
+        image: str,
     ):
         self.time_limit = time_limit  # int:ms
         self.mem_limit = mem_limit  # int:kb
@@ -40,7 +41,7 @@ class Sandbox:
         self.output_size_limit = output_size_limit  # int:byte
         # filenames should be ignored
         self.ignores = {*ignores}
-        self.image = 'sandbox'  # str
+        self.image = image  # str
         self.src_dir = src_dir
         self.working_dir = '/sandbox'
         self.client = docker.DockerClient.from_env()
