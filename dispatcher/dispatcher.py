@@ -117,7 +117,6 @@ class Dispatcher(threading.Thread):
                 continue
             # get a case
             submission_id = self.queue.get()
-            self.logger.info(f'create container for {submission_id}')
             # assign a new runner
             threading.Thread(
                 target=self.create_container,
@@ -134,12 +133,13 @@ class Dispatcher(threading.Thread):
         self.do_run = False
 
     def create_container(
-        self,
-        submission_id: str,
-        **ks,  # pass to sandbox
+            self,
+            submission_id: str,
+            **ks,  # pass to sandbox
     ):
         if submission_id not in self.result:
             raise SubmissionIdNotFoundError(f'{submission_id} not found!')
+        self.logger.info(f'Create container [submission_id={submission_id}]')
         self.container_count += 1
         res = Sandbox(
             src_dir=str(self.get_host_path(submission_id).absolute()),
@@ -150,7 +150,7 @@ class Dispatcher(threading.Thread):
             **ks,
         ).run()
         self.container_count -= 1
-        self.logger.info(f'finish task {submission_id}')
+        self.logger.info(f'Finish task [submission_id={submission_id}]')
         # truncate long stdout/stderr
         _res = res.copy()
         for k in ('stdout', 'stderr'):

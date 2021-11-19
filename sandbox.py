@@ -1,14 +1,16 @@
 import logging
 import tarfile
 import shutil
+import json
 from io import BytesIO
 from uuid import uuid1
 from pathlib import Path
 import os
 
 import docker
+import docker.types
 from docker.errors import APIError
-from requests.exceptions import ReadTimeout
+from requests.exceptions import ConnectionError
 
 
 class OutputLimitExceed(Exception):
@@ -46,6 +48,16 @@ class Sandbox:
         self.container_src_dir = container_src_dir
         self.is_OJ = os.path.exists(f'{container_src_dir}/input')
 
+    @classmethod
+    def judge_error_result(cls):
+        return {
+            'stdout': '',
+            'stderr': '',
+            'status': SandboxResult.JUDGER_ERROR,
+            'files': [],
+            'result': 1,
+        }
+
     def run(self):
         # docker container settings
         volume = {
@@ -54,11 +66,9 @@ class Sandbox:
                 'mode': 'rw'
             },
         }
-        # has input and output
-        extra = ''
+        command = f'python3 main.py'
         if self.is_OJ:
-            extra = '< input'
-        command = f'timeout {self.time_limit} python3 main.py {extra}'
+            command += ' < input'
         self.container = self.client.containers.create(
             image=self.image,
             # FIXME: Use `sh` to include can correctly get the redirected input
@@ -71,19 +81,26 @@ class Sandbox:
             # storage_opt={
             #     'size': '64M',
             # },
+            pids_limit=8,
+            nano_cpus=10**9,
+            ulimits=[
+                docker.types.Ulimit(name='cpu', hard=1),
+            ],
         )
         try:
             # start and wait container
             self.container.start()
-            exit_status = self.container.wait(timeout=self.time_limit)
-            logging.debug(f'get docker response: {exit_status}')
+            api_resp = self.container.wait(timeout=self.time_limit)
+            logging.debug(f'Get docker response: {json.dumps(api_resp)}')
         except APIError as e:
             self.container.remove(force=True)
-            logging.error(e)
-            return {'status': SandboxResult.JUDGER_ERROR}
-        # no other process needed
-        except ReadTimeout:
-            pass
+            logging.error(f'Docker API error [err={e}]')
+            return self.judge_error_result()
+        except ConnectionError:
+            self.container.remove(force=True)
+            logging.info(f'Container timeout')
+            # TODO: Add TLE status
+            return self.judge_error_result()
         # result retrive
         try:
             # assume judge successful
@@ -104,8 +121,8 @@ class Sandbox:
                 files = []
                 status = SandboxResult.OUTPUT_LIMIT_EXCEED
             else:
-                stdout = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                stdout = stdout.decode('utf-8', 'replace')
+                stderr = stderr.decode('utf-8', 'replace')
             # try to get files
             try:
                 files = self.get_files()
@@ -116,8 +133,8 @@ class Sandbox:
                 status = SandboxResult.OUTPUT_LIMIT_EXCEED
         except APIError as e:
             self.container.remove(force=True)
-            logging.error(e)
-            return {'status': SandboxResult.JUDGER_ERROR}
+            logging.error(f'Docker API error [err={e}]')
+            return self.judge_error_result()
         finally:
             # remove containers
             self.container.remove(force=True)
@@ -125,8 +142,8 @@ class Sandbox:
                 'stdout': stdout,
                 'stderr': stderr,
                 'files': files,
-                'error': exit_status['Error'],
-                'exitCode': exit_status['StatusCode'],
+                'error': api_resp.get('Error', None),
+                'exitCode': api_resp.get('StatusCode', None),
                 'status': status,
             }
             # add OJ result
@@ -167,7 +184,7 @@ class Sandbox:
             ret.append(f.open('rb'))
         # remove tmp data
         shutil.rmtree(extract_path)
-        logging.info(f'extract files {[f.name for f in ret]}')
+        logging.debug(f'Extract files [files={[f.name for f in ret]}]')
         return ret
 
     @classmethod
