@@ -118,6 +118,7 @@ class Dispatcher(threading.Thread):
         self.logger.debug('start dispatcher loop')
         while True:
             self.ensure_image()
+            time.sleep(1)
             # end the loop
             if not self.do_run:
                 self.logger.debug('exit dispatcher loop')
@@ -143,7 +144,6 @@ class Dispatcher(threading.Thread):
                     'image': self.image,
                 },
             ).start()
-            time.sleep(1)
 
     def stop(self):
         self.do_run = False
