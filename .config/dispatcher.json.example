@@ -1,7 +1,8 @@
 {
-    "queue_size": 256,
-    "max_container_count": 32,
+    "queue_size": 64,
+    "max_container_count": 8,
     "base_dir": "submissions",
-    "host_dir": "/submissions",
-    "image": "registry.gitlab.com/pyshare/judger@sha256:66c8e1f190e0a3b899aa58c1ee9040ca33858e9bd546d706c59c9dd16cc774bb"
+    "host_dir": "/tmp/submissions",
+    "image": "registry.gitlab.com/pyshare/judger"
 }
+
