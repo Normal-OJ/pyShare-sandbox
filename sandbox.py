@@ -3,6 +3,7 @@ import tarfile
 import shutil
 import json
 from io import BytesIO
+from typing import List
 from uuid import uuid1
 from pathlib import Path
 import os
@@ -31,7 +32,7 @@ class Sandbox:
         output_size_limit: int,
         file_size_limit: int,
         src_dir: str,
-        ignores: list,
+        ignores: List[str],
         container_src_dir: str,
         image: str,
     ):
@@ -82,11 +83,8 @@ class Sandbox:
             # storage_opt={
             #     'size': '64M',
             # },
-            pids_limit=8,
+            pids_limit=1024,
             nano_cpus=10**9,
-            ulimits=[
-                docker.types.Ulimit(name='cpu', hard=1),
-            ],
         )
         try:
             # start and wait container

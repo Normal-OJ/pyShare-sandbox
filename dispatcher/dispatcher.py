@@ -5,6 +5,7 @@ import time
 import queue
 import logging
 import textwrap
+from typing import Set
 import docker
 import docker.errors
 from pathlib import Path
@@ -17,7 +18,7 @@ class Dispatcher(threading.Thread):
     def __init__(
         self,
         on_complete,
-        dispatcher_config='.config/dispatcher.json',
+        dispatcher_config: str,
     ):
         super().__init__()
         self.testing = False
@@ -27,21 +28,20 @@ class Dispatcher(threading.Thread):
             config = json.load(open(dispatcher_config))
         else:
             self.logger.warning(
-                f'dispatcher config {dispatcher_config} not found')
+                f'dispatcher config not found '
+                f'[path={dispatcher_config}]', )
         # flag to decided whether the loop should run
         self.do_run = True
         # submission location (inside container)
         self.base_dir = Path(config.get('base_dir', 'submissions'))
         self.base_dir.mkdir(exist_ok=True)
         # host dir must be the mount point of base dir
-        self.host_dir = Path(config.get('host_dir', '/submissions'))
+        self.host_dir = Path(config.get('host_dir', '/tmp/submissions'))
         # task queue
         self.max_task_count = config.get('queue_size', 16)
-        # type Queue[Tuple[submission_id, task_no]]
+        # submission queue
         self.queue = queue.Queue(self.max_task_count)
-        # task result
-        # type: Dict[submission_id, Tuple[submission_info, List[result]]]
-        self.result = set()
+        self.submission_ids: Set[str] = set()
         # manage containers
         self.max_container_count = config.get('max_container_count', 8)
         self.container_count = 0
@@ -71,7 +71,7 @@ class Dispatcher(threading.Thread):
     def get_host_path(self, submission_id) -> Path:
         return self.host_dir / submission_id
 
-    def handle(self, submission_id):
+    def handle(self, submission_id: str) -> bool:
         '''
         handle a submission, save its config and push into task queue
 
@@ -89,16 +89,21 @@ class Dispatcher(threading.Thread):
         elif not submission_path.is_dir():
             raise NotADirectoryError(f'{submission_path} is not a directory')
         # duplicated
-        if submission_id in self.result:
+        if submission_id in self.submission_ids:
             raise DuplicatedSubmissionIdError(
                 f'duplicated submission id {submission_id}.')
-        self.result.add(submission_id)
-        self.logger.debug(f'current submissions: {[*self.result]}')
+        self.submission_ids.add(submission_id)
+        self.logger.debug(f'current submissions {[*self.submission_ids]}')
         try:
-            # put (submission_id, case_no)
             self.queue.put_nowait(submission_id)
+            self.logger.debug(
+                'new submission enqueue '
+                f'[submission_id={submission_id}]', )
         except queue.Full as e:
-            self.result.remove(submission_id)
+            self.submission_ids.remove(submission_id)
+            self.logger.warning(
+                'submissino queue is full now, this submission is dropped '
+                f'[submission_id={submission_id}]', )
             raise e
         return True
 
@@ -113,23 +118,33 @@ class Dispatcher(threading.Thread):
             print('print: ' + msg)
             time.sleep(0.16)
 
+    def cannot_run_submission(self):
+        return any((
+            self.no_testcase(),
+            self.no_slot(),
+        ))
+
+    def no_slot(self):
+        '''
+        no space for new cotainer now
+        '''
+        return self.container_count >= self.max_container_count
+
+    def no_testcase(self):
+        '''
+        no testcase need to be run
+        '''
+        return self.queue.empty()
+
     def run(self):
         self.do_run = True
         self.logger.debug('start dispatcher loop')
-        while True:
+        while self.do_run:
             self.ensure_image()
-            time.sleep(1)
-            # end the loop
-            if not self.do_run:
-                self.logger.debug('exit dispatcher loop')
-                break
-            # no testcase need to be run
-            if self.queue.empty():
+            if self.cannot_run_submission():
+                time.sleep(1)
                 continue
-            # no space for new cotainer now
-            if self.container_count >= self.max_container_count:
-                continue
-            # get a case
+            # get a submission
             submission_id = self.queue.get()
             # assign a new runner
             threading.Thread(
@@ -143,6 +158,12 @@ class Dispatcher(threading.Thread):
                     'image': self.image,
                 },
             ).start()
+        self.logger.debug('exit dispatcher loop')
+
+    def graceful_shutdown(self):
+        self.logger.info('Prepare to shutdown')
+        # TODO: cleanup ot store submission queue?
+        self.stop()
 
     def stop(self):
         self.do_run = False
@@ -152,7 +173,7 @@ class Dispatcher(threading.Thread):
             submission_id: str,
             **ks,  # pass to sandbox
     ):
-        if submission_id not in self.result:
+        if submission_id not in self.submission_ids:
             raise SubmissionIdNotFoundError(f'{submission_id} not found!')
         self.logger.info(f'Create container [submission_id={submission_id}]')
         self.container_count += 1
@@ -166,14 +187,19 @@ class Dispatcher(threading.Thread):
         ).run()
         self.container_count -= 1
         self.logger.info(f'Finish task [submission_id={submission_id}]')
-        # truncate long stdout/stderr
-        _res = res.copy()
-        for k in ('stdout', 'stderr'):
-            _res[k] = textwrap.shorten(_res.get(k, ''), 37, placeholder='...')
-        # extract filename
-        if 'files' in _res:
-            _res['files'] = [f.name for f in _res['files']]
-        self.logger.debug(f'runner result: {_res}')
+        if self.logger.isEnabledFor(logging.DEBUG):
+            # truncate long stdout/stderr
+            _res = res.copy()
+            for k in ('stdout', 'stderr'):
+                _res[k] = textwrap.shorten(
+                    _res.get(k, ''),
+                    37,
+                    placeholder='...',
+                )
+            # extract filename
+            if 'files' in _res:
+                _res['files'] = [f.name for f in _res['files']]
+            self.logger.debug(f'runner result [result={_res}]')
         # completion
         if self.testing:
             self.logger.info(
@@ -183,4 +209,4 @@ class Dispatcher(threading.Thread):
         # post data
         self.on_complete(submission_id, res)
         # remove this submission
-        self.result.remove(submission_id)
+        self.submission_ids.remove(submission_id)

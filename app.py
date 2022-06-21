@@ -7,7 +7,6 @@ import queue
 import secrets
 from datetime import datetime
 from pathlib import Path
-
 from flask import Flask, request, jsonify
 from dispatcher.dispatcher import Dispatcher
 
@@ -156,7 +155,7 @@ def status():
             'maxTaskCount': DISPATCHER.max_task_count,
             'containerCount': DISPATCHER.container_count,
             'maxContainerCount': DISPATCHER.max_container_count,
-            'submissions': [*DISPATCHER.result],
+            'submissions': [*DISPATCHER.submission_ids],
             'running': DISPATCHER.do_run,
         })
     return jsonify(ret), 200
